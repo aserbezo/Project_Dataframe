@@ -1,0 +1,172 @@
+
+aserbezov@bgsofprjl08:~$ ls
+Project_Sensor_data  convert.py  country  create.parquet  dataframe.py  new.parquet  read_files.py  test.csv
+
+
+-------------------------------------------------------
+STEP 1 - run script read_files.py in the server.
+-------------------------------------------------------
+
+aserbezov@bgsofprjl08:~$ vim read_files.py
+aserbezov@bgsofprjl08:~$ python3 read_files.py
+Please enter the path: /home/aserbezov/Project_Sensor_data/IoT-Sensor-data
+
+reading the all json files in the given directory and safe the as test.csv
+
+****************************************************************
+read_files.py
+_______________
+
+import os
+import pandas as pd
+
+pd.set_option('display.max_columns', 50)  # or 1000
+pd.set_option('display.max_rows', 50)  # or 1000
+
+
+class ReadFiles:
+
+    def __init__(self):
+        self.dfs = []
+        self.directory = input(f"Please enter the path: ")
+        self.path = os.listdir(self.directory)
+        for file in self.path:
+            df = pd.read_json(f"{self.directory}\\{file}").T
+            self.dfs.append(df)
+
+        temp = pd.concat(self.dfs, ignore_index=True)
+        temp["state"] = pd.to_numeric(temp["state"], errors='coerce')
+        temp = temp.dropna(axis=0)
+        temp["state"] = temp["state"].astype(int)
+        temp.to_csv(("test.csv"))
+
+
+dl = ReadFiles()
+
+_______________________________________________________________________________________________________________________________________
+STEP 2 run script convert.py in the server for transforming the data in the given file
+
+aserbezov@bgsofprjl08:~$ python3 convert.py
+Please enter the file path: /home/aserbezov/test.csv
+
+**********************************************************************************************************************
+convert.py
+______________
+
+
+class Convert:
+    def __init__(self):
+        self.filename = input("Please enter the file path: ")
+        self.file = self.filename
+
+    @staticmethod
+    def convert_temp(count, df):
+        df["state"][count] = f"{round((df['state'][count] * 9 / 5) + 32)}°F"
+        return df["state"][count]
+
+    @staticmethod
+    def convert_memory(count, df):
+        # (SI) convetion
+        df["state"][count] = f"{round(2048 / 1000)} MB"
+        return df["state"][count]
+
+    @staticmethod
+    def add_humidity(count, df):
+        df["state"][count] = f"{df['state'][count]}% "
+        return df["state"][count]
+
+    def convert(self):
+        count = 0
+        df = pd.read_csv(self.file)
+        for i in df["entity_id"]:
+            if "temp" in i or "deg" in i:
+                self.convert_temp(count, df)
+
+            elif "memory" in i:
+                self.convert_memory(count, df)
+
+            elif "humidity" in i:
+                self.add_humidity(count, df)
+
+            count += 1
+
+        return df.to_csv("test.csv")
+	
+	def dataframe()
+
+df = Convert()
+df.convert()
+
+_______________________________________________________________________________________________________________________________
+
+STEP 3  joining the data with sensors.csv 
+________________________________________________________________________________________________________________________________
+
+path_to_data_csv = "/home/aserbezov/test.csv"
+path_to_sensor_csv = "/home/aserbezov/Project_Sensor_data/sensors.csv"
+
+
+data = spark.read.format("csv").option("header", "true").load(path_to_data_csv)
+sensor = spark.read.format("csv").option("header", "true").load(path_to_sensor_csv)
+data = data.drop("Unnamed: 0")
+data = data.dropna()
+
+
+from pyspark.sql.functions import split
+import pyspark
+split_col = pyspark.sql.functions.split(data['entity_id'], 'sensor.')
+data = data.withColumn('Sensor', split_col.getItem(1))
+data = data.drop("NAME1")
+data = data.drop("NAME2")
+
+
+joined_data_spark = data.join(sensor, data.Sensor == sensor. Sensor_id, "left").show()
+
+
+Result :
++---+-------------------+--------------------+------------+-----+--------------------+------+--------------------+--------------------+----------------+
+|_c0|            created|           entity_id|old_state_id|state|              Sensor|  Type|           Sensor_id|         Description|Measurement_unit|
++---+-------------------+--------------------+------------+-----+--------------------+------+--------------------+--------------------+----------------+
+|  0|2021-01-06 00-00-10|  sensor.memory_free|      225403| 2 MB|         memory_free|sensor|         memory_free|  Server free memory|              MB|
+|  1|2021-01-06 00-00-30|sensor.0x00158d00...|      225375| 75°F|0x00158d00041f1ff...|sensor|0x00158d00041f1ff...|Gas sensor temper...|              'C|
+|  2|2021-01-06 00-00-30|sensor.0x00158d00...|      225380|   94|0x00158d00041f1ff...|sensor|0x00158d00041f1ff...|       Level of link|          number|
+|  3|2021-01-06 00-00-30|sensor.0x00158d00...|      225409|   92|0x00158d00041f1ff...|sensor|0x00158d00041f1ff...|       Level of link|          number|
+|  4|2021-01-06 00-00-38|     sensor.srv_tdeg|      225398|109°F|            srv_tdeg|sensor|            srv_tdeg|Server core tempe...|              'C|
+|  5|2021-01-06 00-00-40|  sensor.memory_free|      225404| 2 MB|         memory_free|sensor|         memory_free|  Server free memory|              MB|
+|  7|2021-01-06 00-00-47|  sensor.as_humidity|      225352| 84% |         as_humidity|sensor|         as_humidity|    Outside humidity|               %|
+|  8|2021-01-06 00-00-47|  sensor.as_pressure|      225353| 1017|         as_pressure|sensor|         as_pressure|    Outside pressure|             hPa|
+|  9|2021-01-06 00-00-47|     sensor.as_pm_10|      225354|   47|            as_pm_10|sensor|            as_pm_10|       Outside PM10 |           ug/m3|
+| 10|2021-01-06 00-00-47|    sensor.as_pm_2_5|      225355|   36|           as_pm_2_5|sensor|           as_pm_2_5|       Outside PM2.5|           ug/m3|
+| 11|2021-01-06 00-00-49|sensor.0x00158d00...|      225186|   91|0x00158d00044f554...|sensor|0x00158d00044f554...|      Sensor battery|               %|
+| 12|2021-01-06 00-00-49|sensor.0x00158d00...|      225189| 48°F|0x00158d00044f554...|sensor|0x00158d00044f554...| Balcony temperature|              'C|
+| 13|2021-01-06 00-00-49|sensor.0x00158d00...|      225191| 73% |0x00158d00044f554...|sensor|0x00158d00044f554...|    Balcony humidity|               %|
+| 14|2021-01-06 00-00-49|sensor.0x00158d00...|      225188| 1009|0x00158d00044f554...|sensor|0x00158d00044f554...|    Balcony pressure|             hPa|
+| 15|2021-01-06 00-00-49|sensor.0x00158d00...|      225190|  102|0x00158d00044f554...|sensor|0x00158d00044f554...|       Level of link|          number|
+| 16|2021-01-06 00-00-49|sensor.0x00158d00...|      225420|   97|0x00158d00044f554...|sensor|0x00158d00044f554...|      Sensor battery|               %|
+| 17|2021-01-06 00-00-49|sensor.0x00158d00...|      225421| 48°F|0x00158d00044f554...|sensor|0x00158d00044f554...| Balcony temperature|              'C|
+| 18|2021-01-06 00-00-49|sensor.0x00158d00...|      225422| 73% |0x00158d00044f554...|sensor|0x00158d00044f554...|    Balcony humidity|               %|
+| 19|2021-01-06 00-00-49|sensor.0x00158d00...|      225423| 1010|0x00158d00044f554...|sensor|0x00158d00044f554...|    Balcony pressure|             hPa|
+| 20|2021-01-06 00-01-10|  sensor.memory_free|      225414| 2 MB|         memory_free|sensor|         memory_free|  Server free memory|              MB|
++---+-------------------+--------------------+------------+-----+--------------------+------+--------------------+--------------------+----------------+
+only showing top 20 rows
+
+
+joined_data_spark = data.join(sensor, data.Sensor == sensor. Sensor_id, "left")
+
+
+-----------------------------------------------------------------------
+STEP 4 
+-----------------------------------------------------------------------
+joined_data_spark .write.format("parquet").partitionBy("created").save("new.parquet") 
+
+
+
+aserbezov@bgsofprjl08:~$ vim
+aserbezov@bgsofprjl08:~$ vim read_files.py
+aserbezov@bgsofprjl08:~$ python3 read_files.py
+Please enter the path: /home/aserbezov/Project_Sensor_data/IoT-Sensor-data
+
+
+
+
+
