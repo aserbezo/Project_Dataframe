@@ -1,6 +1,6 @@
 # Project_Dataframe
--Zip archive that contains JSON files with some sensor data
-Goal is to :
+
+  Goal is to :
 
 - join them with the respective sensor information (sensors.csv) and add the description column.
 
